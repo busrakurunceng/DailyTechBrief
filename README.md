@@ -22,6 +22,7 @@ copy .env.example .env   # Windows; use cp on macOS/Linux
 python fetch_rss.py
 python generate_brief.py
 python send_telegram.py   # optional: deliver to Telegram
+python send_email.py      # optional: deliver by email
 ```
 
 Open `data/daily_brief.md` for the briefing.
@@ -63,6 +64,13 @@ Create `.env` from `.env.example`:
 | `OPENAI_MODEL` | No | `gpt-4o-mini` | Chat model for synthesis |
 | `TELEGRAM_BOT_TOKEN` | For Telegram | — | From [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_CHAT_ID` | For Telegram | — | Your chat ID (see below) |
+| `SMTP_HOST` | For email | `smtp.gmail.com` | SMTP server |
+| `SMTP_PORT` | For email | `587` | Usually 587 (STARTTLS) |
+| `SMTP_USER` | For email | — | SMTP login (often your email) |
+| `SMTP_PASSWORD` | For email | — | SMTP password or Gmail app password |
+| `EMAIL_FROM` | No | `SMTP_USER` | Sender address |
+| `EMAIL_TO` | For email | — | Recipient inbox |
+| `EMAIL_SUBJECT` | No | `Daily AI Brief — YYYY-MM-DD` | Email subject line |
 
 `.env` is gitignored.
 
@@ -132,7 +140,24 @@ python send_telegram.py
 3. Get your chat ID: open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `message.chat.id`, or use [@userinfobot](https://t.me/userinfobot).
 4. Set `TELEGRAM_CHAT_ID` in `.env`.
 
-**Roadmap:** Email delivery (SMTP / Gmail) is planned next after Telegram (`rapor.txt` §8).
+### `send_email.py` — Email delivery
+
+Sends `data/daily_brief.md` as **plain text + simple HTML** (Markdown headings and lists converted for inbox readability). Uses Python’s built-in `smtplib` (no extra package).
+
+```bash
+python send_email.py
+```
+
+**Gmail setup (typical)**
+
+1. Google Account → Security → turn on **2-Step Verification**.
+2. Create an **App password** (Mail / Other).
+3. In `.env`:
+   - `SMTP_USER` / `EMAIL_FROM` = your Gmail address
+   - `SMTP_PASSWORD` = 16-character app password (not your normal password)
+   - `EMAIL_TO` = recipient (can be the same address)
+
+Other providers: set `SMTP_HOST`, `SMTP_PORT`, and credentials accordingly.
 
 ---
 
@@ -179,6 +204,7 @@ DailyTechBrief/
 ├── fetch_rss.py         # RSS → ranked JSON
 ├── generate_brief.py    # ranked JSON → daily_brief.md
 ├── send_telegram.py     # daily_brief.md → Telegram
+├── send_email.py        # daily_brief.md → SMTP inbox
 ├── requirements.txt
 ├── .env.example
 ├── README.md
@@ -209,4 +235,4 @@ Add an RSS source: append `{"name": "...", "url": "..."}` to `SOURCES` in `fetch
 ## Notes
 
 - `data/` and `.env` are not committed.
-- Email delivery is not implemented yet; Telegram is the first delivery channel.
+- Delivery: Telegram (`send_telegram.py`) and email (`send_email.py`).
