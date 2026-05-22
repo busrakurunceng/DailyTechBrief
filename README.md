@@ -219,6 +219,7 @@ DailyTechBrief/
 ├── send_telegram.py     # daily_brief.md → Telegram
 ├── send_email.py        # daily_brief.md → SMTP inbox
 ├── run_daily.py         # run full pipeline
+├── .github/workflows/daily.yml  # scheduled cloud runs
 ├── requirements.txt
 ├── .env.example
 ├── README.md
@@ -246,7 +247,52 @@ Add an RSS source: append `{"name": "...", "url": "..."}` to `SOURCES` in `fetch
 | Missing `articles_ranked.json` | Run `fetch_rss.py` first |
 | Empty filter results | Broaden `FILTER_KEYWORDS` or add feeds |
 
+## Scheduled runs (GitHub Actions)
+
+The pipeline can run **without your PC** via [GitHub Actions](.github/workflows/daily.yml).
+
+### How scheduling works
+
+- Workflow: `.github/workflows/daily.yml`
+- Trigger: `schedule` (cron) and manual `workflow_dispatch`
+- Cron: `0 5 * * *` — **GitHub always uses UTC**
+- **05:00 UTC ≈ 08:00 Turkey (TRT, UTC+3)** in standard time
+- During daylight saving changes, verify Turkey’s offset and adjust the cron hour if needed (e.g. `0 4 * * *` for UTC+4)
+
+Each run: checkout → Python 3.12 → `pip install -r requirements.txt` → `python run_daily.py`.
+
+### GitHub Secrets
+
+Store secrets in the repo: **Settings → Secrets and variables → Actions → New repository secret**.
+
+Do not commit `.env`. The workflow injects secrets as environment variables (same names as local `.env`).
+
+| Secret | Required | Notes |
+|--------|----------|--------|
+| `OPENAI_API_KEY` | Yes | OpenAI API key |
+| `OPENAI_MODEL` | Recommended | e.g. `gpt-4o-mini` (if omitted, workflow may pass an empty value — set the secret) |
+| `TELEGRAM_BOT_TOKEN` | For Telegram | Bot token from @BotFather |
+| `TELEGRAM_CHAT_ID` | For Telegram | Your chat ID |
+| `SMTP_USER` | For email | SMTP login |
+| `SMTP_PASSWORD` | For email | Gmail app password, etc. |
+| `EMAIL_TO` | For email | Recipient address |
+| `SMTP_HOST` | Recommended | e.g. `smtp.gmail.com` |
+| `SMTP_PORT` | Recommended | e.g. `587` |
+| `EMAIL_FROM` | Recommended | Usually same as `SMTP_USER` |
+| `EMAIL_SUBJECT` | Optional | e.g. `Daily AI Brief` |
+
+### Test from GitHub UI
+
+1. Push `.github/workflows/daily.yml` to GitHub.
+2. Add all required secrets (table above).
+3. Open **Actions** → **Daily Tech Brief** → **Run workflow** → **Run workflow** (`workflow_dispatch`).
+4. Open the running job → step logs; confirm **Run daily pipeline** succeeds.
+5. Check your inbox and Telegram for the brief.
+
+Scheduled runs appear under **Actions** after the cron time (may be delayed a few minutes on free tier).
+
 ## Notes
 
 - `data/` and `.env` are not committed.
 - Delivery: Telegram (`send_telegram.py`) and email (`send_email.py`).
+- Cloud runs do not require your PC to be on at 08:00.
