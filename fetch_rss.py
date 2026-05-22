@@ -14,6 +14,23 @@ SOURCES = [
 ]
 MAX_ENTRIES = 5
 OUTPUT_FILE = Path("articles.json")
+FILTERED_OUTPUT_FILE = Path("articles_filtered.json")
+
+# rapor.txt §6.3 — başlık veya özetinde en az biri geçmeli (büyük/küçük harf duyarsız)
+FILTER_KEYWORDS = [
+    "AI",
+    "LLM",
+    "GPT",
+    "OpenAI",
+    "Anthropic",
+    "Google",
+    "DeepMind",
+    "Nvidia",
+    "startup",
+    "funding",
+    "model",
+    "robotics",
+]
 
 
 def format_published(entry: feedparser.FeedParserDict) -> str:
@@ -85,13 +102,26 @@ def fetch_source(source: dict) -> list[dict]:
     return articles
 
 
-def save_articles(articles: list[dict]) -> None:
+def article_text(article: dict) -> str:
+    return f"{article.get('title', '')} {article.get('summary', '')}"
+
+
+def matches_keywords(article: dict) -> bool:
+    text = article_text(article).lower()
+    return any(keyword.lower() in text for keyword in FILTER_KEYWORDS)
+
+
+def filter_articles(articles: list[dict]) -> list[dict]:
+    return [a for a in articles if matches_keywords(a)]
+
+
+def write_json(path: Path, articles: list[dict]) -> None:
     payload = {
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "article_count": len(articles),
         "articles": articles,
     }
-    OUTPUT_FILE.write_text(
+    path.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
@@ -113,8 +143,19 @@ def main() -> int:
     if not all_articles:
         return 1
 
-    save_articles(all_articles)
+    write_json(OUTPUT_FILE, all_articles)
     print(f"Kaydedildi: {OUTPUT_FILE.resolve()}")
+
+    filtered = filter_articles(all_articles)
+    write_json(FILTERED_OUTPUT_FILE, filtered)
+    print(
+        f"Filtre: {len(filtered)}/{len(all_articles)} madde kaldi -> "
+        f"{FILTERED_OUTPUT_FILE.resolve()}"
+    )
+
+    if not filtered:
+        print("Uyarı: hiçbir madde anahtar kelime filtresinden geçmedi.", file=sys.stderr)
+
     return 0
 
 
