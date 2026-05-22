@@ -17,12 +17,25 @@ RSS sources (fetch_rss.py)
 ```bash
 pip install -r requirements.txt
 copy .env.example .env   # Windows; use cp on macOS/Linux
-# Edit .env and set OPENAI_API_KEY
+# Edit .env (OpenAI, Telegram, SMTP as needed)
 
+python run_daily.py
+```
+
+**One command** runs: RSS → brief → Telegram → email. Skip delivery or use a mock brief:
+
+```bash
+python run_daily.py --skip-telegram --skip-email   # ingest + brief only
+python run_daily.py --mock                          # no OpenAI call
+```
+
+Or run each step manually:
+
+```bash
 python fetch_rss.py
 python generate_brief.py
-python send_telegram.py   # optional: deliver to Telegram
-python send_email.py      # optional: deliver by email
+python send_telegram.py
+python send_email.py
 ```
 
 Open `data/daily_brief.md` for the briefing.
@@ -205,6 +218,7 @@ DailyTechBrief/
 ├── generate_brief.py    # ranked JSON → daily_brief.md
 ├── send_telegram.py     # daily_brief.md → Telegram
 ├── send_email.py        # daily_brief.md → SMTP inbox
+├── run_daily.py         # run full pipeline
 ├── requirements.txt
 ├── .env.example
 ├── README.md
