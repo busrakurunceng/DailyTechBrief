@@ -261,6 +261,8 @@ The pipeline can run **without your PC** via [GitHub Actions](.github/workflows/
 
 Each run: checkout → Python 3.12 → `pip install -r requirements.txt` → `python run_daily.py`.
 
+**Temporary (GitHub Actions only):** `.github/workflows/daily.yml` currently uses `--skip-telegram` while the bot token is being fixed. Local runs still use full delivery: `python run_daily.py` (email + Telegram). Remove `--skip-telegram` from the workflow when ready.
+
 ### GitHub Secrets
 
 Store secrets in the repo: **Settings → Secrets and variables → Actions → New repository secret**.
@@ -271,8 +273,8 @@ Do not commit `.env`. The workflow injects secrets as environment variables (sam
 |--------|----------|--------|
 | `OPENAI_API_KEY` | Yes | OpenAI API key |
 | `OPENAI_MODEL` | Recommended | e.g. `gpt-4o-mini` (if omitted, workflow may pass an empty value — set the secret) |
-| `TELEGRAM_BOT_TOKEN` | For Telegram | Bot token from @BotFather |
-| `TELEGRAM_CHAT_ID` | For Telegram | Your chat ID |
+| `TELEGRAM_BOT_TOKEN` | For Telegram | From [@BotFather](https://t.me/BotFather); needed for local runs; add now if you plan to re-enable Telegram in the workflow |
+| `TELEGRAM_CHAT_ID` | For Telegram | Your chat ID; same as above |
 | `SMTP_USER` | For email | SMTP login |
 | `SMTP_PASSWORD` | For email | Gmail app password, etc. |
 | `EMAIL_TO` | For email | Recipient address |
@@ -287,7 +289,7 @@ Do not commit `.env`. The workflow injects secrets as environment variables (sam
 2. Add all required secrets (table above).
 3. Open **Actions** → **Daily Tech Brief** → **Run workflow** → **Run workflow** (`workflow_dispatch`).
 4. Open the running job → step logs; confirm **Run daily pipeline** succeeds.
-5. Check your inbox and Telegram for the brief.
+5. Check your inbox (and Telegram when the workflow runs without `--skip-telegram`).
 
 Scheduled runs appear under **Actions** after the cron time (may be delayed a few minutes on free tier).
 
