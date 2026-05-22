@@ -1,50 +1,134 @@
-# Daily Tech Brief — RSS Ingestion
+# Daily Tech Brief
 
-**RSS collection and preprocessing** for a daily AI & technology news briefing. This stage fetches articles from feeds, filters them, removes duplicates, and ranks them by score. LLM synthesis is a separate step (`generate_brief.py`).
+A minimal pipeline that collects AI & technology news from RSS feeds, preprocesses and ranks articles, then generates a **daily analyst-style briefing** with an LLM.
 
-## What it does
-
-A single command runs this pipeline:
+## End-to-end flow
 
 ```
-RSS sources
-    → raw article list
-    → keyword filter
-    → title deduplication
-    → scoring and ranking
+RSS sources (fetch_rss.py)
+    → filter → dedupe → rank
+    → articles_ranked.json
+    → LLM synthesis (generate_brief.py)
+    → daily_brief.md
 ```
 
-All outputs are written under `data/`.
+## Quick start
+
+```bash
+pip install -r requirements.txt
+copy .env.example .env   # Windows; use cp on macOS/Linux
+# Edit .env and set OPENAI_API_KEY
+
+python fetch_rss.py
+python generate_brief.py
+```
+
+Open `data/daily_brief.md` for the briefing.
+
+**Without OpenAI credits** (local pipeline test only):
+
+```bash
+python generate_brief.py --mock
+```
+
+---
 
 ## Requirements
 
 - Python 3.10+
-- [feedparser](https://pypi.org/project/feedparser/)
+- Internet access (RSS fetch + OpenAI API)
+- OpenAI API key with available quota ([billing](https://platform.openai.com/settings/organization/billing))
+
+### Dependencies
+
+| Package | Used by |
+|---------|---------|
+| `feedparser` | `fetch_rss.py` |
+| `openai`, `python-dotenv` | `generate_brief.py` |
+
+Install all:
 
 ```bash
-pip install feedparser
+pip install -r requirements.txt
 ```
 
-(Other packages in `requirements.txt` are for the LLM step; only `feedparser` is required for RSS ingestion.)
+### Environment variables
 
-## Usage
+Create `.env` from `.env.example`:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENAI_API_KEY` | Yes (except `--mock`) | — | OpenAI API key |
+| `OPENAI_MODEL` | No | `gpt-4o-mini` | Chat model for synthesis |
+
+`.env` is gitignored.
+
+---
+
+## Scripts
+
+### `fetch_rss.py` — RSS ingestion
+
+Fetches feeds, filters, deduplicates, scores, and writes JSON under `data/`.
 
 ```bash
 python fetch_rss.py
 ```
 
-On success, the console lists recent items per source, then summary lines for filter, dedup, and ranking stats.
+**Default sources** (`SOURCES`):
 
-## Output files
+- TechCrunch
+- The Verge
+- Ars Technica
 
-| File | Description |
-|------|-------------|
-| `data/articles.json` | Raw items from all sources |
-| `data/articles_filtered.json` | Items matching AI/tech keywords |
-| `data/articles_deduped.json` | List after near-duplicate titles are removed |
-| `data/articles_ranked.json` | Scored and sorted list (suitable as LLM input) |
+Up to **5** entries per source (`MAX_ENTRIES`). Failed feeds are skipped.
 
-Each JSON file shares the same top-level shape:
+**Processing steps**
+
+1. **Keyword filter** — keep items where title or summary matches at least one of:  
+   `AI`, `LLM`, `GPT`, `OpenAI`, `Anthropic`, `Google`, `DeepMind`, `Nvidia`, `startup`, `funding`, `model`, `robotics`  
+   (edit `FILTER_KEYWORDS` in `fetch_rss.py`)
+
+2. **Deduplication** — normalized title similarity **> 0.9** → drop duplicate (`DEDUP_SIMILARITY_THRESHOLD`)
+
+3. **Scoring** — `score = source_weight + recency_weight + keyword_matches`  
+   - Source: Ars Technica 3, TechCrunch / The Verge 2, other 1  
+   - Recency: 24h → 3, 48h → 2, 72h → 1, older → 0  
+   - Keywords: count of matching filter terms  
+
+### `generate_brief.py` — LLM synthesis
+
+Reads top **10** articles from `data/articles_ranked.json`, calls OpenAI once, writes Markdown to `data/daily_brief.md`.
+
+```bash
+python generate_brief.py
+python generate_brief.py --mock   # no API call
+```
+
+The model acts as a **tech analyst** (synthesis, patterns, impact)—not a per-article summarizer. Output structure:
+
+- `# Daily AI Brief`
+- `## Top Stories` (numbered, with “Why it matters” bullets)
+- `## Emerging Trends`
+- `## Key Takeaway`
+
+On API failure, the script retries once (except `insufficient_quota`, where retry is skipped and billing help is printed).
+
+---
+
+## Output files (`data/`)
+
+All generated artifacts live in `data/` (gitignored).
+
+| File | Producer | Description |
+|------|----------|-------------|
+| `articles.json` | `fetch_rss.py` | Raw items from all sources |
+| `articles_filtered.json` | `fetch_rss.py` | Keyword-filtered items |
+| `articles_deduped.json` | `fetch_rss.py` | After title deduplication |
+| `articles_ranked.json` | `fetch_rss.py` | Scored, sorted; LLM input |
+| `daily_brief.md` | `generate_brief.py` | Final daily briefing |
+
+### JSON envelope
 
 ```json
 {
@@ -54,84 +138,54 @@ Each JSON file shares the same top-level shape:
 }
 ```
 
-Items in `articles_ranked.json` also include `score` and `score_breakdown`.
-
-### Article schema
+### Article fields
 
 | Field | Description |
 |-------|-------------|
 | `title` | Article title |
 | `link` | Original URL |
 | `published` | Publish time (ISO 8601, UTC) |
-| `source` | Source name (e.g. TechCrunch) |
-| `summary` | Short excerpt from the RSS summary (~200 chars max) |
+| `source` | Feed label (e.g. TechCrunch) |
+| `summary` | Short RSS excerpt (~200 chars) |
 
-## Pipeline details
+Ranked items also include `score` and `score_breakdown`.
 
-### 1. RSS fetch
-
-Default sources (defined in `SOURCES` in `fetch_rss.py`):
-
-- TechCrunch
-- The Verge
-- Ars Technica
-
-Up to **5** latest entries per source (`MAX_ENTRIES`). If a feed fails to load, it is skipped and processing continues for the rest.
-
-### 2. Keyword filter
-
-Keeps items where **at least one** of these words appears in the title or summary (case-insensitive):
-
-`AI`, `LLM`, `GPT`, `OpenAI`, `Anthropic`, `Google`, `DeepMind`, `Nvidia`, `startup`, `funding`, `model`, `robotics`
-
-Edit the list via `FILTER_KEYWORDS` in `fetch_rss.py`.
-
-### 3. Deduplication
-
-Titles are normalized (lowercase, punctuation stripped). If similarity between two titles is **> 0.9**, the later one is dropped; the **first** occurrence is kept (`DEDUP_SIMILARITY_THRESHOLD`).
-
-### 4. Scoring
-
-```
-score = source_weight + recency_weight + keyword_matches
-```
-
-| Component | Rules |
-|-----------|--------|
-| Source weight | Ars Technica: 3, TechCrunch / The Verge: 2, other: 1 |
-| Recency | Last 24h: 3, 48h: 2, 72h: 1, older: 0 |
-| Keywords | Count of distinct matching filter keywords |
-
-Articles are sorted by `score` (descending) in `articles_ranked.json`.
+---
 
 ## Project layout
 
 ```
 DailyTechBrief/
-├── fetch_rss.py      # RSS pipeline (covered by this README)
+├── fetch_rss.py         # RSS → ranked JSON
+├── generate_brief.py    # ranked JSON → daily_brief.md
 ├── requirements.txt
-├── data/             # Generated JSON (gitignored)
-│   ├── articles.json
-│   ├── articles_filtered.json
-│   ├── articles_deduped.json
-│   └── articles_ranked.json
-└── rapor.txt         # Product & architecture spec (local)
+├── .env.example
+├── README.md
+├── data/                # generated (gitignored)
+│   ├── articles*.json
+│   └── daily_brief.md
+└── rapor.txt            # product spec (local, gitignored)
 ```
 
 ## Configuration
 
-RSS settings live as constants at the top of `fetch_rss.py`:
+| File | What to edit |
+|------|----------------|
+| `fetch_rss.py` | `SOURCES`, `MAX_ENTRIES`, `FILTER_KEYWORDS`, `SOURCE_WEIGHTS`, `DATA_DIR` |
+| `generate_brief.py` | `TOP_N`, `DEFAULT_MODEL`, `SYSTEM_PROMPT` |
+| `.env` | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 
-- `SOURCES` — feed name and URL list
-- `MAX_ENTRIES` — max items per source
-- `FILTER_KEYWORDS` — filter keywords
-- `SOURCE_WEIGHTS` — source weights for scoring
-- `DATA_DIR` — output directory (default: `data`)
+Add an RSS source: append `{"name": "...", "url": "..."}` to `SOURCES` in `fetch_rss.py`.
 
-To add a feed, append `{"name": "...", "url": "..."}` to `SOURCES` and run the script again.
+## Troubleshooting
+
+| Issue | What to do |
+|-------|------------|
+| `insufficient_quota` (429) | Add billing/credits on OpenAI; or use `--mock` to test the pipeline |
+| Missing `articles_ranked.json` | Run `fetch_rss.py` first |
+| Empty filter results | Broaden `FILTER_KEYWORDS` or add feeds |
 
 ## Notes
 
-- The `data/` directory is in `.gitignore`; generated files are not committed.
-- Requires network access; feeds are fetched live on each run.
-- See `rapor.txt` for the full product specification.
+- `data/` and `.env` are not committed.
+- Delivery (Telegram, static web) is not implemented yet; see `rapor.txt` for the full roadmap.
