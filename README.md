@@ -21,6 +21,7 @@ copy .env.example .env   # Windows; use cp on macOS/Linux
 
 python fetch_rss.py
 python generate_brief.py
+python send_telegram.py   # optional: deliver to Telegram
 ```
 
 Open `data/daily_brief.md` for the briefing.
@@ -60,6 +61,8 @@ Create `.env` from `.env.example`:
 |----------|----------|---------|-------------|
 | `OPENAI_API_KEY` | Yes (except `--mock`) | — | OpenAI API key |
 | `OPENAI_MODEL` | No | `gpt-4o-mini` | Chat model for synthesis |
+| `TELEGRAM_BOT_TOKEN` | For Telegram | — | From [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_CHAT_ID` | For Telegram | — | Your chat ID (see below) |
 
 `.env` is gitignored.
 
@@ -114,6 +117,23 @@ The model acts as a **tech analyst** (synthesis, patterns, impact)—not a per-a
 
 On API failure, the script retries once (except `insufficient_quota`, where retry is skipped and billing help is printed).
 
+### `send_telegram.py` — Telegram delivery (priority)
+
+Sends `data/daily_brief.md` to your Telegram chat. Long briefs are split into multiple messages (under Telegram’s 4096-character limit). Uses the standard library only (no extra package).
+
+```bash
+python send_telegram.py
+```
+
+**Setup**
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) → copy the token into `TELEGRAM_BOT_TOKEN`.
+2. Start a chat with your bot (send `/start`).
+3. Get your chat ID: open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `message.chat.id`, or use [@userinfobot](https://t.me/userinfobot).
+4. Set `TELEGRAM_CHAT_ID` in `.env`.
+
+**Roadmap:** Email delivery (SMTP / Gmail) is planned next after Telegram (`rapor.txt` §8).
+
 ---
 
 ## Output files (`data/`)
@@ -158,6 +178,7 @@ Ranked items also include `score` and `score_breakdown`.
 DailyTechBrief/
 ├── fetch_rss.py         # RSS → ranked JSON
 ├── generate_brief.py    # ranked JSON → daily_brief.md
+├── send_telegram.py     # daily_brief.md → Telegram
 ├── requirements.txt
 ├── .env.example
 ├── README.md
@@ -173,7 +194,7 @@ DailyTechBrief/
 |------|----------------|
 | `fetch_rss.py` | `SOURCES`, `MAX_ENTRIES`, `FILTER_KEYWORDS`, `SOURCE_WEIGHTS`, `DATA_DIR` |
 | `generate_brief.py` | `TOP_N`, `DEFAULT_MODEL`, `SYSTEM_PROMPT` |
-| `.env` | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| `.env` | `OPENAI_*`, `TELEGRAM_*` |
 
 Add an RSS source: append `{"name": "...", "url": "..."}` to `SOURCES` in `fetch_rss.py`.
 
@@ -188,4 +209,4 @@ Add an RSS source: append `{"name": "...", "url": "..."}` to `SOURCES` in `fetch
 ## Notes
 
 - `data/` and `.env` are not committed.
-- Delivery (Telegram, static web) is not implemented yet; see `rapor.txt` for the full roadmap.
+- Email delivery is not implemented yet; Telegram is the first delivery channel.
