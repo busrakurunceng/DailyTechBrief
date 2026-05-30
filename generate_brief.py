@@ -17,40 +17,45 @@ BRIEF_OUTPUT = DATA_DIR / "daily_brief.md"
 TOP_N = 10
 DEFAULT_MODEL = "gpt-4o-mini"
 
-SYSTEM_PROMPT = """You are a senior technology analyst writing a daily AI & tech briefing.
+SYSTEM_PROMPT = """Sen deneyimli bir teknoloji analistisin. Günlük AI ve teknoloji brifingini TÜRKÇE yazıyorsun.
 
-You must SYNTHESIZE the news, not just summarize each article separately.
-- Group related stories when appropriate
-- Identify patterns across items
-- Remove redundancy
-- Highlight impact and implications
-- Write clearly for a technical audience
+Hedef kitle: Haberleri takip eden ama her detayı bilmeyen okuyucu. Jargonu açıkla, kısaltmaları ilk geçtiğinde parantez içinde açıkla.
 
-Output MUST be valid Markdown in exactly this structure:
+Yazım kuralları:
+- Tüm metin TÜRKÇE olmalı (başlıklar, madde işaretleri, paragraflar).
+- Haberleri sadece kopyalama; sentez yap, ilişkili konuları grupla, tekrarı azalt.
+- Her haber için bağlam ver: NE oldu, KİM/NERE ile ilgili, NEDEN şimdi gündemde, etkisi ne olabilir.
+- Kısa özet değil; okuyucu haberi anlasın diye 4-6 cümlelik açıklayıcı paragraflar yaz.
+- Teknik terimleri sade Türkçe ile destekle (ör. "tedarik zinciri saldırısı" = yazılım güncellemeleri üzerinden zararlı kod yayma).
+- Sadece verilen makalelerdeki bilgileri kullan; uydurma, URL ekleme.
+- Kaynak adını paragrafta bir kez belirt (ör. "TechCrunch'a göre...").
 
-# Daily AI Brief
+Çıktı geçerli Markdown olmalı ve TAM OLARAK şu yapıda:
 
-## Top Stories
+# Günlük AI & Teknoloji Brifingi
 
-### 1. Story Title
-Summary (2-4 sentences)
+## Öne Çıkan Haberler
 
-Why it matters:
-- bullet insight
-- bullet insight
+### 1. [Türkçe haber başlığı — orijinali çevir veya anlamlı Türkçe karşılık]
+**Ne oldu?**
+4-6 cümle: olayı sıfırdan anlatan, bağlamı ve gelişmeyi açıklayan paragraf.
+
+**Neden önemli?**
+- Somut etki veya sonuç (sektör, kullanıcı, güvenlik vb.)
+- Kısa vadede ne izlenmeli / ne anlama geliyor
+
+**Kaynak:** [kaynak adı]
 
 ---
 
-(repeat for each major story you include, numbered)
+(her önemli haber için numaralandırarak tekrarla; en fazla 5-6 haber)
 
-## Emerging Trends
-- Trend 1
-- Trend 2
+## Günün Temaları
+- Tema 1: Kısa açıklama (1-2 cümle)
+- Tema 2: Kısa açıklama
 
-## Key Takeaway
-One short paragraph synthesizing the day.
-
-Use only information from the provided articles. Do not invent facts or URLs."""
+## Günün Özeti
+2-4 cümle: Bugünün genel tablosu, okuyucunun aklında kalacak sentez."""
 
 
 def parse_args() -> argparse.Namespace:
@@ -89,30 +94,33 @@ def load_top_articles(path: Path, top_n: int) -> list[dict]:
 
 def build_user_message(articles: list[dict]) -> str:
     return (
-        "Create today's briefing from these articles (JSON):\n\n"
+        "Aşağıdaki makalelerden bugünün Türkçe günlük brifingini oluştur. "
+        "Her haberi açıklayıcı ve anlaşılır yaz; okuyucu konuyu ilk kez duyuyormuş gibi anlatsın.\n\n"
         f"{json.dumps(articles, indent=2, ensure_ascii=False)}"
     )
 
 
 def generate_mock_brief(articles: list[dict]) -> str:
     lines = [
-        "# Daily AI Brief",
+        "# Günlük AI & Teknoloji Brifingi",
         "",
-        "> **Mock briefing** — no LLM call. Use after fixing OpenAI billing, or run without `--mock`.",
+        "> **Mock brifing** — LLM çağrılmadı. Gerçek çıktı için `python generate_brief.py` çalıştırın.",
         "",
-        "## Top Stories",
+        "## Öne Çıkan Haberler",
         "",
     ]
     for i, article in enumerate(articles, start=1):
-        summary = article.get("summary") or "No summary available."
+        summary = article.get("summary") or "Özet yok."
         lines.extend(
             [
                 f"### {i}. {article['title']}",
+                "**Ne oldu?**",
                 summary,
                 "",
-                "Why it matters:",
-                f"- Covered by **{article['source']}** ({article.get('date', 'n/a')}).",
-                f"- [Read more]({article['link']})" if article.get("link") else "- Link unavailable.",
+                "**Neden önemli?**",
+                f"- **{article['source']}** kaynağında yer aldı ({article.get('date', 'tarih yok')}).",
+                "",
+                f"**Kaynak:** {article['source']}",
                 "",
                 "---",
                 "",
@@ -122,12 +130,11 @@ def generate_mock_brief(articles: list[dict]) -> str:
     sources = sorted({a["source"] for a in articles if a.get("source")})
     lines.extend(
         [
-            "## Emerging Trends",
-            f"- Multiple stories from: {', '.join(sources) or 'n/a'}.",
-            "- Space, policy, and security themes appear in today's ranked set (mock placeholder).",
+            "## Günün Temaları",
+            f"- Bugünkü listede öne çıkan kaynaklar: {', '.join(sources) or 'yok'}.",
             "",
-            "## Key Takeaway",
-            "This is a pipeline test output. Replace with a real LLM run once your OpenAI account has available quota.",
+            "## Günün Özeti",
+            "Bu bir test çıktısıdır. OpenAI ile üretilen brifing Türkçe ve daha ayrıntılı olacaktır.",
             "",
         ]
     )
@@ -162,7 +169,8 @@ def call_llm(client: OpenAI, model: str, user_message: str) -> str:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
-        temperature=0.4,
+        temperature=0.5,
+        max_tokens=4096,
     )
     content = response.choices[0].message.content
     if not content:

@@ -129,12 +129,14 @@ python generate_brief.py
 python generate_brief.py --mock   # no API call
 ```
 
-The model acts as a **tech analyst** (synthesis, patterns, impact)—not a per-article summarizer. Output structure:
+The model writes the briefing **in Turkish**, with explanatory context (what happened, why it matters, plain-language terms). Output structure:
 
-- `# Daily AI Brief`
-- `## Top Stories` (numbered, with “Why it matters” bullets)
-- `## Emerging Trends`
-- `## Key Takeaway`
+- `# Günlük AI & Teknoloji Brifingi`
+- `## Öne Çıkan Haberler` — each story: **Ne oldu?**, **Neden önemli?**, **Kaynak**
+- `## Günün Temaları`
+- `## Günün Özeti`
+
+Set `EMAIL_SUBJECT` in `.env` / GitHub Secrets to Turkish if you want a Turkish inbox subject (e.g. `Günlük AI Brifingi`).
 
 On API failure, the script retries once (except `insufficient_quota`, where retry is skipped and billing help is printed).
 
